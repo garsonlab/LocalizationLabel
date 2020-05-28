@@ -1,8 +1,10 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 public class TextSafeConvert2Label : MonoBehaviour
 {
@@ -10,18 +12,28 @@ public class TextSafeConvert2Label : MonoBehaviour
     static void SafeConvert()
     {
          var objs = Selection.gameObjects;
-        
+
+         if(objs == null || objs.Length <= 0)
+             return;
+         int index = 0;
         List<SerializedObject> cache = new List<SerializedObject>();
-        foreach (var obj in objs)
+
+        EditorApplication.update = () =>
         {
-            var txts = obj.GetComponentsInChildren<Text>(true);
+            var prefab = objs[index++];
+            string path = AssetDatabase.GetAssetPath(prefab);
+
+            bool cancel = EditorUtility.DisplayCancelableProgressBar("Localization Label Replacing", path,
+                index * 1.0f / objs.Length);
+            
+            var txts = prefab.GetComponentsInChildren<Text>(true);
             foreach (var txt in txts)
             {
                 cache.Add(Convert(txt));
             }
             Apply(cache);
 
-            var labels = obj.GetComponentsInChildren<Label>(true);
+            var labels = prefab.GetComponentsInChildren<Label>(true);
             foreach (var label in labels)
             {
                 var langCom = label.GetComponent<LanguageComponent>();
@@ -41,8 +53,16 @@ public class TextSafeConvert2Label : MonoBehaviour
                 }
             }
             Apply(cache);
-        }
+
+            if (index >= objs.Length || cancel)
+            {
+                EditorApplication.update = null;
+                EditorUtility.ClearProgressBar();
+                Debug.Log($"Convert Success With {index} Prefab{(index>1? "s": "")}!");
+            }
+        };
     }
+
     
 
     static SerializedObject Convert(Text text)
